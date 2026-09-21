@@ -1,0 +1,1339 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Dashboard exhaustif · ILC_DI01 Eurostat</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root{--bg:#f4f7fb;--card:#fff;--border:#e9eef3;--txt:#1e293b;--muted:#64748b;--accent:#1e7a9e;--dark:#0b3b5c;--red:#c94c4c;--green:#2e7d32;--orange:#e08a3c;--yellow:#e0c23c}
+  *{box-sizing:border-box}
+  body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--txt);margin:0;padding:24px}
+  h1{font-size:1.7rem;color:var(--dark);margin:0 0 4px}
+  .sub{color:var(--muted);font-size:.9rem;margin-bottom:20px}
+  .tabs{display:flex;gap:8px;margin-bottom:20px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+  .tab{padding:10px 18px;border:none;background:transparent;color:var(--muted);font-weight:600;cursor:pointer;border-bottom:2px solid transparent;font-size:.9rem}
+  .tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+  .panel{display:none}.panel.active{display:block}
+  .selectors{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px;align-items:center}
+  select,button,input{font:inherit;padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:#fff;color:var(--dark);cursor:pointer;font-size:.85rem}
+  button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:22px}
+  .kpi{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px}
+  .kpi .l{font-size:.68rem;text-transform:uppercase;color:#5e7a93;font-weight:600;letter-spacing:.3px}
+  .kpi .v{font-size:1.5rem;font-weight:700;color:var(--dark);margin-top:5px}
+  .kpi .s{font-size:.72rem;color:var(--muted);margin-top:3px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px}
+  .card h2{font-size:.92rem;color:#1e4a6b;margin:0 0 12px;display:flex;justify-content:space-between}
+  .card h2 small{font-size:.68rem;color:var(--muted);font-weight:500}
+  .chart{height:280px;position:relative}
+  .chart-tall{height:340px;position:relative}
+  .full{grid-column:1/-1}
+  #map{height:560px;border-radius:12px}
+  .err{background:#fee2e2;color:#991b1b;padding:14px 18px;border-radius:12px;margin-bottom:20px}
+  .info{background:#eff6ff;border-left:3px solid var(--accent);padding:10px 14px;border-radius:8px;font-size:.8rem;color:#1e4a6b;margin-bottom:14px}
+  table{width:100%;border-collapse:collapse;font-size:.78rem}
+  th,td{padding:6px 8px;border-bottom:1px solid var(--border);text-align:left}
+  th{background:#f8fafc;font-weight:600;color:#1e4a6b;position:sticky;top:0}
+  .scroll{max-height:520px;overflow:auto;border-radius:10px;border:1px solid var(--border)}
+  .badge{display:inline-block;padding:2px 7px;border-radius:6px;font-size:.68rem;font-weight:600}
+  .badge.blue{background:#dbeafe;color:#1e40af}
+  @media(max-width:900px){.grid,.grid3{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<h1>Dashboard exhaustif · Distribution des revenus en Europe</h1>
+<div class="sub">Source Eurostat <code>ILC_DI01</code> · 6 dimensions exploitées · fallbacks automatiques</div>
+<div id="err"></div>
+
+<div class="tabs">
+  <button class="tab active" data-tab="revenus">📊 Revenus</button>
+  <button class="tab" data-tab="seuils">💰 Seuils</button>
+  <button class="tab" data-tab="distribution">📈 Distribution</button>
+  <button class="tab" data-tab="carte">🗺️ Carte</button>
+  <button class="tab" data-tab="catalogue">📚 Catalogue</button>
+  <button class="tab" data-tab="convergence">📉 Convergence</button>
+  <button class="tab" data-tab="pauvrete">🏚️ Pauvreté</button>
+  <button class="tab" data-tab="raw">🔍 Explorateur</button>
+</div>
+
+<!-- REVENUS -->
+<div class="panel active" id="panel-revenus">
+  <div class="selectors">
+    <label>Pays : <select id="selGeo"></select></label>
+    <label>Année : <select id="selYear"></select></label>
+    <button class="primary" id="btnReset">Dernière année</button>
+  </div>
+  <div class="kpis" id="kpis"></div>
+  <div class="grid">
+    <div class="card"><h2>Ratio S80/S20 · tous pays <small id="srcS80">—</small></h2><div class="chart"><canvas id="c1"></canvas></div></div>
+    <div class="card"><h2>Évolution <small id="lblEvolution">—</small></h2><div class="chart"><canvas id="c2"></canvas></div></div>
+    <div class="card"><h2>Indice de Gini <small id="srcGini">—</small></h2><div class="chart"><canvas id="c5"></canvas></div></div>
+    <div class="card"><h2>Ratio P90/P10 <small id="srcP90">—</small></h2><div class="chart"><canvas id="c6"></canvas></div></div>
+  </div>
+</div>
+
+<!-- SEUILS -->
+<div class="panel" id="panel-seuils">
+  <div class="info">💡 Les <b>seuils</b> (<code>TC</code>) indiquent le revenu minimum pour appartenir à un quantile.</div>
+  <div class="selectors">
+    <label>Pays : <select id="selGeo2"></select></label>
+    <label>Année : <select id="selYear2"></select></label>
+    <label>Unité : <select id="selUnit"></select></label>
+  </div>
+  <div class="kpis" id="kpis2"></div>
+  <div class="grid">
+    <div class="card"><h2>Seuils Q1–Q4 · tous pays</h2><div class="chart-tall"><canvas id="s1"></canvas></div></div>
+    <div class="card"><h2>Seuils D1–D9 <small id="lblSeuilGeo">—</small></h2><div class="chart-tall"><canvas id="s2"></canvas></div></div>
+  </div>
+</div>
+
+<!-- DISTRIBUTION -->
+<div class="panel" id="panel-distribution">
+  <div class="selectors">
+    <label>Pays : <select id="selGeo3"></select></label>
+    <label>Année : <select id="selYear3"></select></label>
+  </div>
+  <div class="grid">
+    <div class="card full"><h2>Courbe de Lorenz</h2><div class="chart-tall"><canvas id="d1"></canvas></div></div>
+    <div class="card"><h2>Part par décile</h2><div class="chart"><canvas id="d2"></canvas></div></div>
+    <div class="card"><h2>Part cumulée</h2><div class="chart"><canvas id="d3"></canvas></div></div>
+  </div>
+</div>
+
+<!-- CARTE -->
+<div class="panel" id="panel-carte">
+  <div class="selectors">
+    <label>Indicateur : <select id="selMapIndicator"></select></label>
+    <label>Année : <select id="selMapYear"></select></label>
+    <label>Palette : 
+      <select id="selMapPalette">
+        <option value="rdylgn">Rouge→Vert</option>
+        <option value="viridis">Viridis</option>
+        <option value="blues">Bleus</option>
+      </select>
+    </label>
+  </div>
+  <div class="card full"><h2 id="lblMapTitle">—</h2><div id="map"></div></div>
+</div>
+
+<!-- CATALOGUE -->
+<div class="panel" id="panel-catalogue">
+  <div class="info">📚 <b>Inventaire exhaustif</b> : toutes les combinaisons <code>statinfo × unit × quant_inc</code> présentes dans le fichier.</div>
+  <div class="selectors">
+    <label>Filtre : <input id="filtreCatalogue" placeholder="ex: GINI, SHARE…" style="width:180px"></label>
+    <label>Unité : <select id="filtreUnitCat"><option value="">Toutes</option></select></label>
+    <button class="primary" id="btnExportCat">⬇ Export CSV</button>
+  </div>
+  <div class="kpis" id="kpisCatalogue"></div>
+  <div class="card full">
+    <h2>Tableau maître <small id="lblCatCount">—</small></h2>
+    <div class="scroll"><table id="tableCatalogue"><thead></thead><tbody></tbody></table></div>
+  </div>
+  <div class="grid">
+    <div class="card"><h2>Points par indicateur</h2><div class="chart-tall"><canvas id="cat1"></canvas></div></div>
+    <div class="card"><h2>Répartition par unité</h2><div class="chart-tall"><canvas id="cat2"></canvas></div></div>
+  </div>
+</div>
+
+<!-- CONVERGENCE -->
+<div class="panel" id="panel-convergence">
+  <div class="info">📉 <b>σ-convergence</b> : les pays se rapprochent (σ ↓) ou divergent (σ ↑) ?</div>
+  <div class="selectors">
+    <label>Indicateur : <select id="selConvStat"></select></label>
+    <label>Unité : <select id="selConvUnit"></select></label>
+    <label>Quantile : <select id="selConvQuant"></select></label>
+    <label>Groupe : 
+      <select id="selConvGroupe">
+        <option value="UE27">UE27</option>
+        <option value="UE15">UE15</option>
+        <option value="EA20">Zone euro</option>
+        <option value="ALL">Tous</option>
+      </select>
+    </label>
+  </div>
+  <div class="kpis" id="kpisConvergence"></div>
+  <div class="grid">
+    <div class="card full"><h2>Évolution de σ <small id="lblConvSigma">—</small></h2><div class="chart-tall"><canvas id="conv1"></canvas></div></div>
+    <div class="card"><h2>Moyenne vs min/max</h2><div class="chart-tall"><canvas id="conv2"></canvas></div></div>
+    <div class="card"><h2>Coefficient de variation</h2><div class="chart-tall"><canvas id="conv3"></canvas></div></div>
+    <div class="card full"><h2>Trajectoires normalisées <small>base 100</small></h2><div class="chart-tall"><canvas id="conv4"></canvas></div></div>
+  </div>
+</div>
+
+<!-- PAUVRETÉ -->
+<div class="panel" id="panel-pauvrete">
+  <div class="info">🏚️ Ce panneau s'adapte automatiquement : utilise <code>AROP</code>/<code>AROPE</code> s'ils existent, sinon bascule sur les indicateurs d'inégalité recalculés depuis <code>SHARE</code>.</div>
+  <div class="selectors">
+    <label>Année : <select id="selYearPauv"></select></label>
+    <label>Pays : <select id="selGeoPauv"></select></label>
+    <label>Indicateur : <select id="selIndPauv"></select></label>
+  </div>
+  <div class="kpis" id="kpisPauv"></div>
+  <div class="grid">
+    <div class="card"><h2 id="titrePauv1">—</h2><div class="chart-tall"><canvas id="pauv1"></canvas></div></div>
+    <div class="card"><h2>Évolution <small id="lblPauvGeo">—</small></h2><div class="chart-tall"><canvas id="pauv2"></canvas></div></div>
+    <div class="card full"><h2>Comparaison multi-indicateurs · <small id="lblPauvGeo2">—</small></h2><div class="chart-tall"><canvas id="pauv3"></canvas></div></div>
+    <div class="card full"><h2>Corrélation inégalité · tous pays <small id="lblPauvYear">—</small></h2><div class="chart-tall"><canvas id="pauv4"></canvas></div></div>
+  </div>
+</div>
+
+<!-- EXPLORATEUR -->
+<div class="panel" id="panel-raw">
+  <div class="info">🔍 Explorez n'importe quelle combinaison des dimensions.</div>
+  <div class="selectors">
+    <label>statinfo : <select id="selExploreStat"></select></label>
+    <label>unit : <select id="selExploreUnit"></select></label>
+    <label>quant_inc : <select id="selExploreQuant"></select></label>
+    <label>Pays : <select id="selExploreGeo"></select></label>
+  </div>
+  <div class="kpis" id="kpisExplore"></div>
+  <div class="grid">
+    <div class="card full"><h2>Série temporelle <small id="lblExplore">—</small></h2><div class="chart-tall"><canvas id="e1"></canvas></div></div>
+    <div class="card full"><h2>Valeurs brutes (extrait)</h2><div id="rawSample" style="font-family:monospace;font-size:.72rem;max-height:300px;overflow:auto;background:#f8fafc;padding:12px;border-radius:8px"></div></div>
+  </div>
+</div>
+
+<script>
+(async () => {
+  const errEl = document.getElementById("err");
+  const fmt = (v, d=2) => v == null || isNaN(v) ? "—" : (+v).toLocaleString('fr-FR', {maximumFractionDigits:d});
+  const mean = a => a.length ? a.reduce((s,v)=>s+v,0)/a.length : 0;
+  const sd = a => { if(!a.length) return 0; const m = mean(a); return Math.sqrt(a.reduce((s,v)=>s+(v-m)**2,0)/a.length); };
+
+  // ============================================================
+  // CHARGEMENT
+  // ============================================================
+  let revenus;
+  try {
+    const r = await fetch("./estat_ilc_di01_en.json");
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    revenus = await r.json();
+  } catch(e) {
+    errEl.innerHTML = `<div class="err">❌ Impossible de charger <code>estat_ilc_di01_en.json</code> : ${e.message}<br>Vérifiez que le fichier est dans le même dossier que ce HTML.</div>`;
+    return;
+  }
+
+  // ============================================================
+  // DÉCODAGE UNIVERSEL
+  // ============================================================
+  const IDS = revenus.id, SIZES = revenus.size, DIMS = revenus.dimension;
+  const TAB = {};
+  for (const d of IDS) {
+    const cat = DIMS[d].category;
+    TAB[d] = {
+      idx2code: Object.keys(cat.index).reduce((o,k)=>(o[cat.index[k]]=k,o),{}),
+      label: cat.label || cat.index,
+      size: SIZES[IDS.indexOf(d)],
+    };
+  }
+  const decode = (key) => {
+    let rem = +key; const out = {};
+    for (let i = IDS.length-1; i >= 0; i--) {
+      out[IDS[i]] = TAB[IDS[i]].idx2code[rem % SIZES[i]];
+      rem = Math.floor(rem / SIZES[i]);
+    }
+    return out;
+  };
+
+  const data = {};
+  const IDX = {
+    freq:new Set(), unit:new Set(), statinfo:new Set(),
+    quant_inc:new Set(), geo:new Set(), time:new Set(),
+    combos:new Set(), status:[],
+  };
+  const COMBOS_STAT_UNIT = {};
+
+  for (const [key, val] of Object.entries(revenus.value)) {
+    if (typeof val !== "number") continue;
+    const c = decode(key);
+    (((((data[c.freq] ??= {})[c.unit] ??= {})[c.statinfo] ??= {})[c.quant_inc] ??= {})[c.geo] ??= {})[c.time] = val;
+    IDX.freq.add(c.freq);
+    IDX.unit.add(c.unit);
+    IDX.statinfo.add(c.statinfo);
+    IDX.quant_inc.add(c.quant_inc);
+    IDX.geo.add(c.geo);
+    IDX.time.add(c.time);
+    IDX.combos.add(`${c.statinfo}|${c.unit}|${c.quant_inc}`);
+    (COMBOS_STAT_UNIT[c.statinfo] ??= new Set()).add(c.unit);
+  }
+  if (revenus.status) {
+    for (const [k, st] of Object.entries(revenus.status)) {
+      if (st && !["","b","p"].includes(st)) IDX.status.push({ ...decode(k), status: st });
+    }
+  }
+
+  const GEO_KEYS = [...IDX.geo];
+  const YEARS = [...IDX.time].sort();
+  const YEAR_MAX = YEARS[YEARS.length-1];
+  const PAYS = GEO_KEYS.filter(g => !/^EU|^EA|^EEA/.test(g));
+
+  console.log(`✓ Chargé : ${PAYS.length} pays · ${YEARS.length} années · ${IDX.statinfo.size} indicateurs · ${IDX.combos.size} combinaisons`);
+  console.log("  statinfo :", [...IDX.statinfo].sort());
+  console.log("  unit     :", [...IDX.unit].sort());
+  console.log("  quant    :", [...IDX.quant_inc].sort());
+
+  // ============================================================
+  // REQUÊTES
+  // ============================================================
+  const q = ({ freq="A", unit, statinfo, quant_inc, geo, time } = {}) => {
+    let n = data[freq];
+    if (unit) n = n?.[unit];
+    if (statinfo) n = n?.[statinfo];
+    if (quant_inc) n = n?.[quant_inc];
+    if (geo) n = n?.[geo];
+    if (time) n = n?.[time];
+    return n;
+  };
+  const serie = (stat, unit, quant, geo) => {
+    const node = q({ unit, statinfo: stat, quant_inc: quant, geo });
+    if (!node) return [];
+    return Object.entries(node).map(([y,v])=>({annee:+y,valeur:v})).sort((a,b)=>a.annee-b.annee);
+  };
+
+  // ============================================================
+  // HELPERS ROBUSTES
+  // ============================================================
+  function findUnit(stat, geo, year, quant = "TOTAL") {
+    const units = COMBOS_STAT_UNIT[stat] ? [...COMBOS_STAT_UNIT[stat]] : [...IDX.unit];
+    for (const u of units) {
+      const v = q({ unit: u, statinfo: stat, quant_inc: quant, geo, time: year });
+      if (typeof v === "number") return u;
+    }
+    return null;
+  }
+  function getVal(stat, geo, year, quants = ["TOTAL"]) {
+    const units = COMBOS_STAT_UNIT[stat] ? [...COMBOS_STAT_UNIT[stat]] : [...IDX.unit];
+    for (const u of units) {
+      for (const qn of quants) {
+        const v = q({ unit: u, statinfo: stat, quant_inc: qn, geo, time: year });
+        if (typeof v === "number") return v;
+      }
+    }
+    return null;
+  }
+  function getSerie(stat, geo, quants = ["TOTAL"]) {
+    const units = COMBOS_STAT_UNIT[stat] ? [...COMBOS_STAT_UNIT[stat]] : [...IDX.unit];
+    for (const u of units) {
+      for (const qn of quants) {
+        const s = serie(stat, u, qn, geo);
+        if (s.length) return s;
+      }
+    }
+    return [];
+  }
+  function giniFromDeciles(parts) {
+    const total = parts.reduce((a,b)=>a+b,0);
+    if (total < 50) return null;
+    const cumul = [0]; let acc = 0;
+    for (const p of parts) { acc += p; cumul.push(acc); }
+    let area = 0;
+    for (let i = 0; i < cumul.length - 1; i++) area += (cumul[i] + cumul[i+1]) / 2 * 10;
+    return Math.max(0, Math.min(1, 1 - area / 5000));
+  }
+  function getDeciles(geo, year) {
+    const u = findUnit("SHARE", geo, year, "D1");
+    if (!u) return null;
+    const parts = ["D1","D2","D3","D4","D5","D6","D7","D8","D9","D10"]
+      .map(k => q({ unit: u, statinfo: "SHARE", quant_inc: k, geo, time: year }));
+    if (parts.some(p => typeof p !== "number")) return null;
+    return parts;
+  }
+  function getGini(geo, year) {
+    const off = getVal("GINI", geo, year);
+    if (off != null) return { v: off < 1 ? off * 100 : off, src: "Eurostat" };
+    const parts = getDeciles(geo, year);
+    if (parts) {
+      const g = giniFromDeciles(parts);
+      if (g != null) return { v: g * 100, src: "recalculé" };
+    }
+    return { v: null, src: "—" };
+  }
+  function getS80S20(geo, year) {
+    const off = getVal("S80S20", geo, year);
+    if (off != null) return { v: off, src: "Eurostat" };
+    const u = findUnit("SHARE", geo, year, "QU1");
+    if (u) {
+      const a = q({ unit: u, statinfo: "SHARE", quant_inc: "QU1", geo, time: year });
+      const b = q({ unit: u, statinfo: "SHARE", quant_inc: "QU5", geo, time: year });
+      if (a && b) return { v: b / a, src: "recalculé" };
+    }
+    return { v: null, src: "—" };
+  }
+  function getP90P10(geo, year) {
+    const off = getVal("P90P10", geo, year);
+    if (off != null) return { v: off, src: "Eurostat" };
+    const u = findUnit("SHARE", geo, year, "D1");
+    if (u) {
+      const a = q({ unit: u, statinfo: "SHARE", quant_inc: "D1", geo, time: year });
+      const b = q({ unit: u, statinfo: "SHARE", quant_inc: "D9", geo, time: year });
+      if (a && b) return { v: b / a, src: "recalculé" };
+    }
+    return { v: null, src: "—" };
+  }
+  function getMedian(geo, year) {
+    for (const stat of ["MED_E"]) {
+      const v = getVal(stat, geo, year, ["TOTAL", "MED"]);
+      if (v != null) return v;
+    }
+    return null;
+  }
+  function getMean(geo, year) {
+    for (const stat of ["MEAN_E"]) {
+      const v = getVal(stat, geo, year, ["TOTAL", "MEAN"]);
+      if (v != null) return v;
+    }
+    return null;
+  }
+
+  // ============================================================
+  // INIT SÉLECTEURS
+  // ============================================================
+  const fill = (sel, opts, def) => {
+    if (!sel) return;
+    sel.innerHTML = opts.map(o => `<option value="${o.v}">${o.l}</option>`).join("");
+    if (def != null && opts.some(o=>o.v===def)) sel.value = def;
+  };
+  const geoOpts = PAYS.map(g => ({v:g, l:TAB.geo.label[g]||g}));
+  const yearOpts = [...YEARS].reverse().map(y => ({v:y, l:y}));
+  const statOpts = [...IDX.statinfo].sort().map(s => ({v:s, l:`${s} — ${TAB.statinfo.label[s]||s}`}));
+  const unitOpts = [...IDX.unit].sort().map(u => ({v:u, l:u}));
+  const quantOpts = [...IDX.quant_inc].sort().map(x => ({v:x, l:`${x} — ${TAB.quant_inc.label[x]||x}`}));
+
+  ["selGeo","selGeo2","selGeo3","selGeoPauv","selExploreGeo"].forEach(id => fill(document.getElementById(id), geoOpts, "FR"));
+  ["selYear","selYear2","selYear3","selYearPauv","selMapYear"].forEach(id => fill(document.getElementById(id), yearOpts, YEAR_MAX));
+  fill(document.getElementById("selExploreStat"), statOpts, [...IDX.statinfo].includes("GINI") ? "GINI" : [...IDX.statinfo][0]);
+  fill(document.getElementById("selExploreUnit"), unitOpts, [...IDX.unit][0]);
+  fill(document.getElementById("selExploreQuant"), quantOpts, "TOTAL");
+  fill(document.getElementById("filtreUnitCat"), [{v:"",l:"Toutes"}, ...unitOpts]);
+  fill(document.getElementById("selUnit"), unitOpts, [...IDX.unit].includes("PPS") ? "PPS" : [...IDX.unit][0]);
+  fill(document.getElementById("selConvStat"), statOpts, [...IDX.statinfo].includes("GINI") ? "GINI" : [...IDX.statinfo][0]);
+  fill(document.getElementById("selConvUnit"), unitOpts, [...IDX.unit][0]);
+  fill(document.getElementById("selConvQuant"), quantOpts, "TOTAL");
+  fill(document.getElementById("selMapIndicator"), [
+    {v:"GINI",l:"Indice de Gini"},
+    {v:"S80S20",l:"Ratio S80/S20"},
+    {v:"P90P10",l:"Ratio P90/P10"},
+    {v:"AROP",l:"AROP (si dispo)"},
+    {v:"MED_E",l:"Médiane MED_E"},
+    {v:"MEAN_E",l:"Moyenne MEAN_E"},
+    {v:"TC_Q1",l:"Seuil Q1 (TC)"},
+  ], "GINI");
+
+  // ============================================================
+  // TABS
+  // ============================================================
+  document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+    document.querySelectorAll(".panel").forEach(x => x.classList.remove("active"));
+    t.classList.add("active");
+    document.getElementById("panel-" + t.dataset.tab).classList.add("active");
+    setTimeout(() => window.dispatchEvent(new Event("resize")), 50);
+    if (t.dataset.tab === "carte" && map) setTimeout(() => map.invalidateSize(), 100);
+  }));
+
+  function exportCSV(rows, filename) {
+    if (!rows.length) return;
+    const headers = Object.keys(rows[0]);
+    const csv = [headers.join(","), ...rows.map(r =>
+      headers.map(h => `"${String(r[h] ?? "").replace(/"/g,'""')}"`).join(",")
+    )].join("\n");
+    const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = filename; a.click();
+  }
+
+  // ============================================================
+  // PANNEAU REVENUS
+  // ============================================================
+  const REV = { charts:{} };
+  function renderRevenus() {
+    const geo = document.getElementById("selGeo").value;
+    const year = document.getElementById("selYear").value;
+    const gini = getGini(geo, year);
+    const s80 = getS80S20(geo, year);
+    const p90 = getP90P10(geo, year);
+    const med = getMedian(geo, year);
+    const moy = getMean(geo, year);
+
+    if (gini.v == null && s80.v == null && p90.v == null && med == null) {
+      document.getElementById("kpis").innerHTML = `
+        <div class="kpi" style="grid-column:1/-1;background:#fee2e2;border-color:#fca5a5">
+          <div class="l" style="color:#991b1b">⚠️ Aucune donnée pour ${TAB.geo.label[geo]||geo} en ${year}</div>
+          <div class="s" style="color:#7f1d1d;margin-top:8px">
+            Indicateurs présents : <b>${[...IDX.statinfo].sort().join(", ")}</b><br>
+            Unités présentes : <b>${[...IDX.unit].sort().join(", ")}</b><br>
+            Années disponibles : <b>${YEARS[0]}–${YEAR_MAX}</b>
+          </div>
+        </div>`;
+      return;
+    }
+
+    document.getElementById("kpis").innerHTML = `
+      <div class="kpi"><div class="l">Pays · année</div><div class="v">${TAB.geo.label[geo]||geo}</div><div class="s">${year}</div></div>
+      <div class="kpi"><div class="l">Gini</div><div class="v">${fmt(gini.v)}</div><div class="s">${gini.src}</div></div>
+      <div class="kpi"><div class="l">S80/S20</div><div class="v">${fmt(s80.v)}</div><div class="s">${s80.src}</div></div>
+      <div class="kpi"><div class="l">P90/P10</div><div class="v">${fmt(p90.v)}</div><div class="s">${p90.src}</div></div>
+      <div class="kpi"><div class="l">Médiane</div><div class="v">${fmt(med,0)}</div><div class="s">niveau de vie</div></div>
+      <div class="kpi"><div class="l">Moyenne</div><div class="v">${fmt(moy,0)}</div><div class="s">${med&&moy?"ratio M/m: "+fmt(moy/med,2):"—"}</div></div>
+    `;
+    document.getElementById("lblEvolution").textContent = TAB.geo.label[geo]||geo;
+    document.getElementById("srcS80").textContent = s80.src;
+    document.getElementById("srcGini").textContent = gini.src;
+    document.getElementById("srcP90").textContent = p90.src;
+
+    // C1
+    const s80All = PAYS.map(g => ({ label: TAB.geo.label[g]||g, val: getS80S20(g, year).v }))
+      .filter(x => x.val != null).sort((a,b)=>b.val-a.val);
+    REV.charts.c1?.destroy();
+    if (s80All.length) {
+      REV.charts.c1 = new Chart(document.getElementById("c1"), {
+        type:"bar",
+        data:{labels:s80All.map(x=>x.label), datasets:[{data:s80All.map(x=>x.val),
+          backgroundColor:s80All.map(x=>x.val>5?"#c94c4c":x.val>4?"#e08a3c":"#2e7d32")}]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+          scales:{x:{ticks:{maxRotation:70,minRotation:45,font:{size:8}}}}}
+      });
+    }
+
+    // C2
+    const sMed = getSerie("MED_E", geo, ["TOTAL","MED"]);
+    const sMoy = getSerie("MEAN_E", geo, ["TOTAL","MEAN"]);
+    let dsC2, labelsC2;
+    if (sMed.length || sMoy.length) {
+      const ref = sMed.length ? sMed : sMoy;
+      labelsC2 = ref.map(x=>x.annee);
+      dsC2 = [
+        sMed.length ? {label:"Médiane", data:sMed.map(x=>x.valeur), borderColor:"#1e7a9e", tension:.3} : null,
+        sMoy.length ? {label:"Moyenne", data:sMoy.map(x=>x.valeur), borderColor:"#e08a3c", tension:.3} : null,
+      ].filter(Boolean);
+    } else {
+      const uS = findUnit("SHARE", geo, YEAR_MAX, "QU1");
+      const s1 = uS ? serie("SHARE", uS, "QU1", geo) : [];
+      const s5 = uS ? serie("SHARE", uS, "QU5", geo) : [];
+      labelsC2 = s1.map(x=>x.annee);
+      dsC2 = [
+        {label:"QU1 (%)", data:s1.map(x=>x.valeur), borderColor:"#c94c4c", tension:.3},
+        {label:"QU5 (%)", data:s5.map(x=>x.valeur), borderColor:"#2e7d32", tension:.3},
+      ];
+    }
+    REV.charts.c2?.destroy();
+    if (dsC2.length) {
+      REV.charts.c2 = new Chart(document.getElementById("c2"), {
+        type:"line",
+        data:{labels: labelsC2, datasets: dsC2},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom"}}}
+      });
+    }
+
+    // C5
+    const giniAll = PAYS.map(g => ({ label: TAB.geo.label[g]||g, val: getGini(g, year).v }))
+      .filter(x => x.val != null).sort((a,b)=>b.val-a.val);
+    REV.charts.c5?.destroy();
+    if (giniAll.length) {
+      REV.charts.c5 = new Chart(document.getElementById("c5"), {
+        type:"bar",
+        data:{labels:giniAll.map(x=>x.label), datasets:[{data:giniAll.map(x=>x.val),
+          backgroundColor:giniAll.map(x=>x.val>34?"#c94c4c":x.val>29?"#e08a3c":"#2e7d32")}]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+          scales:{x:{ticks:{maxRotation:70,minRotation:45,font:{size:8}}}}}
+      });
+    }
+
+    // C6
+    const p90All = PAYS.map(g => ({ label: TAB.geo.label[g]||g, val: getP90P10(g, year).v }))
+      .filter(x => x.val != null).sort((a,b)=>b.val-a.val);
+    REV.charts.c6?.destroy();
+    if (p90All.length) {
+      REV.charts.c6 = new Chart(document.getElementById("c6"), {
+        type:"bar",
+        data:{labels:p90All.map(x=>x.label), datasets:[{data:p90All.map(x=>x.val),
+          backgroundColor:p90All.map(x=>x.val>4?"#c94c4c":x.val>3?"#e08a3c":"#2e7d32")}]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+          scales:{x:{ticks:{maxRotation:70,minRotation:45,font:{size:8}}}}}
+      });
+    }
+  }
+  ["selGeo","selYear"].forEach(id => document.getElementById(id).addEventListener("change", renderRevenus));
+  document.getElementById("btnReset").addEventListener("click", () => {
+    document.getElementById("selYear").value = YEAR_MAX; renderRevenus();
+  });
+  renderRevenus();
+
+  // ============================================================
+  // PANNEAU SEUILS
+  // ============================================================
+  const SEU = { charts:{} };
+  function renderSeuils() {
+    const geo = document.getElementById("selGeo2").value;
+    const year = document.getElementById("selYear2").value;
+    const unit = document.getElementById("selUnit").value;
+
+    document.getElementById("lblSeuilGeo").textContent = TAB.geo.label[geo]||geo;
+
+    const q1 = q({unit, statinfo:"TC", quant_inc:"Q1", geo, time:year});
+    const q2 = q({unit, statinfo:"TC", quant_inc:"Q2", geo, time:year});
+    const q3 = q({unit, statinfo:"TC", quant_inc:"Q3", geo, time:year});
+    const q4 = q({unit, statinfo:"TC", quant_inc:"Q4", geo, time:year});
+
+    if (q1 == null && q2 == null && q3 == null && q4 == null) {
+      document.getElementById("kpis2").innerHTML = `
+        <div class="kpi" style="grid-column:1/-1;background:#fee2e2;border-color:#fca5a5">
+          <div class="l" style="color:#991b1b">⚠️ TC indisponible pour ${TAB.geo.label[geo]||geo} en ${year} (${unit})</div>
+          <div class="s" style="color:#7f1d1d">Essayez une autre unité ou une autre année.</div>
+        </div>`;
+      return;
+    }
+
+    document.getElementById("kpis2").innerHTML = `
+      <div class="kpi"><div class="l">Pays · année</div><div class="v">${TAB.geo.label[geo]||geo}</div><div class="s">${year} · ${unit}</div></div>
+      <div class="kpi"><div class="l">Q1</div><div class="v">${fmt(q1,0)}</div><div class="s">25 % en dessous</div></div>
+      <div class="kpi"><div class="l">Q2 (médiane)</div><div class="v">${fmt(q2,0)}</div><div class="s">50 %</div></div>
+      <div class="kpi"><div class="l">Q3</div><div class="v">${fmt(q3,0)}</div><div class="s">75 % en dessous</div></div>
+      <div class="kpi"><div class="l">Q4</div><div class="v">${fmt(q4,0)}</div><div class="s">top 25 %</div></div>
+      <div class="kpi"><div class="l">Écart Q4-Q1</div><div class="v">${q4&&q1?fmt(q4-q1,0):'—'}</div><div class="s">amplitude</div></div>
+    `;
+
+    const arr = PAYS.map(g => ({
+      label:TAB.geo.label[g]||g,
+      q1: q({unit, statinfo:"TC", quant_inc:"Q1", geo:g, time:year}),
+      q2: q({unit, statinfo:"TC", quant_inc:"Q2", geo:g, time:year}),
+      q3: q({unit, statinfo:"TC", quant_inc:"Q3", geo:g, time:year}),
+      q4: q({unit, statinfo:"TC", quant_inc:"Q4", geo:g, time:year}),
+    })).filter(x => x.q1 != null).sort((a,b)=>b.q1-a.q1).slice(0,20);
+
+    SEU.charts.s1?.destroy();
+    if (arr.length) {
+      SEU.charts.s1 = new Chart(document.getElementById("s1"), {
+        type:"bar",
+        data:{labels:arr.map(x=>x.label), datasets:[
+          {label:"Q1", data:arr.map(x=>x.q1), backgroundColor:"#c94c4c"},
+          {label:"Q2", data:arr.map(x=>x.q2), backgroundColor:"#e08a3c"},
+          {label:"Q3", data:arr.map(x=>x.q3), backgroundColor:"#7cb342"},
+          {label:"Q4", data:arr.map(x=>x.q4), backgroundColor:"#2e7d32"},
+        ]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom"}},
+          scales:{x:{ticks:{maxRotation:60,minRotation:45,font:{size:8}}}}}
+      });
+    }
+
+    const decArr = ["D1","D2","D3","D4","D5","D6","D7","D8","D9"].map(k =>
+      q({unit, statinfo:"TC", quant_inc:k, geo, time:year})
+    );
+    SEU.charts.s2?.destroy();
+    SEU.charts.s2 = new Chart(document.getElementById("s2"), {
+      type:"bar",
+      data:{labels:["D1","D2","D3","D4","D5","D6","D7","D8","D9"],
+        datasets:[{data:decArr, backgroundColor:decArr.map((_,i)=>`hsl(${140-i*10},55%,${55-i*2}%)`)}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}
+    });
+  }
+  ["selGeo2","selYear2","selUnit"].forEach(id => document.getElementById(id).addEventListener("change", renderSeuils));
+  renderSeuils();
+
+  // ============================================================
+  // PANNEAU DISTRIBUTION
+  // ============================================================
+  const DIST = { charts:{} };
+  function renderDistribution() {
+    const geo = document.getElementById("selGeo3").value;
+    const year = document.getElementById("selYear3").value;
+    const parts = getDeciles(geo, year);
+
+    if (!parts) {
+      document.getElementById("kpis") // no-op
+      document.querySelector("#panel-distribution .grid").innerHTML = `
+        <div class="kpi" style="grid-column:1/-1;background:#fee2e2;border-color:#fca5a5">
+          <div class="l" style="color:#991b1b">⚠️ Parts déciles indisponibles pour ${TAB.geo.label[geo]||geo} en ${year}</div>
+        </div>`;
+      return;
+    }
+
+    const cumul = [0]; let acc = 0;
+    for (const p of parts) { acc += p; cumul.push(acc); }
+    const lorenzX = Array.from({length: 11}, (_, i) => i * 10);
+
+    DIST.charts.d1?.destroy();
+    DIST.charts.d1 = new Chart(document.getElementById("d1"), {
+      type:"line",
+      data:{labels:lorenzX, datasets:[
+        {label:"Lorenz", data:cumul, borderColor:"#c94c4c", backgroundColor:"#c94c4c22", fill:true, tension:.2},
+        {label:"Égalité parfaite", data:lorenzX.slice(), borderColor:"#94a3b8", borderDash:[5,5], pointRadius:0},
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom"}},
+        scales:{x:{title:{display:true,text:"% cumulé population"}},y:{title:{display:true,text:"% cumulé revenu"}}}}
+    });
+
+    DIST.charts.d2?.destroy();
+    DIST.charts.d2 = new Chart(document.getElementById("d2"), {
+      type:"bar",
+      data:{labels:["D1","D2","D3","D4","D5","D6","D7","D8","D9","D10"],
+        datasets:[{data:parts, backgroundColor:"#1e7a9e"}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}
+    });
+
+    DIST.charts.d3?.destroy();
+    DIST.charts.d3 = new Chart(document.getElementById("d3"), {
+      type:"line",
+      data:{labels:["D1","D2","D3","D4","D5","D6","D7","D8","D9","D10"],
+        datasets:[{data:cumul.slice(1), borderColor:"#2e7d32", fill:true, backgroundColor:"#2e7d3222", tension:.2}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}
+    });
+  }
+  ["selGeo3","selYear3"].forEach(id => document.getElementById(id).addEventListener("change", renderDistribution));
+  renderDistribution();
+
+  // ============================================================
+  // CATALOGUE
+  // ============================================================
+  const CAT = { charts:{} };
+  function buildInventaire() {
+    const rows = [];
+    for (const stat of [...IDX.statinfo].sort()) {
+      for (const unit of [...IDX.unit].sort()) {
+        for (const quant of [...IDX.quant_inc].sort()) {
+          if (!IDX.combos.has(`${stat}|${unit}|${quant}`)) continue;
+          const node = data.A?.[unit]?.[stat]?.[quant];
+          if (!node) continue;
+          let n = 0; const geos = new Set(), years = new Set();
+          for (const [g, ys] of Object.entries(node)) {
+            for (const [y, v] of Object.entries(ys)) {
+              if (typeof v === "number") { n++; geos.add(g); years.add(y); }
+            }
+          }
+          if (n === 0) continue;
+          const yArr = [...years].sort();
+          rows.push({
+            statinfo: stat, labelStat: TAB.statinfo.label[stat] || stat,
+            unit, quant_inc: quant, labelQuant: TAB.quant_inc.label[quant] || quant,
+            nPoints: n, nGeos: geos.size, nYears: years.size,
+            yearMin: yArr[0], yearMax: yArr[yArr.length-1],
+          });
+        }
+      }
+    }
+    return rows;
+  }
+  const INVENTAIRE = buildInventaire();
+
+  function renderCatalogue() {
+    const filtreStat = document.getElementById("filtreCatalogue").value.trim().toUpperCase();
+    const filtreUnit = document.getElementById("filtreUnitCat").value;
+    const filtered = INVENTAIRE.filter(r =>
+      (!filtreStat || r.statinfo.toUpperCase().includes(filtreStat) || r.labelStat.toUpperCase().includes(filtreStat)) &&
+      (!filtreUnit || r.unit === filtreUnit)
+    );
+    const totalPoints = filtered.reduce((s,r)=>s+r.nPoints,0);
+    const stats = new Set(filtered.map(r=>r.statinfo));
+    document.getElementById("kpisCatalogue").innerHTML = `
+      <div class="kpi"><div class="l">Combinaisons</div><div class="v">${filtered.length}</div><div class="s">statinfo × unit × quant</div></div>
+      <div class="kpi"><div class="l">Points</div><div class="v">${totalPoints.toLocaleString('fr-FR')}</div><div class="s">valeurs numériques</div></div>
+      <div class="kpi"><div class="l">Indicateurs</div><div class="v">${stats.size}</div><div class="s">statinfo uniques</div></div>
+      <div class="kpi"><div class="l">Pays</div><div class="v">${PAYS.length}</div><div class="s">+ agrégats</div></div>
+      <div class="kpi"><div class="l">Années</div><div class="v">${YEARS[0]}–${YEAR_MAX}</div><div class="s">${YEARS.length} années</div></div>
+      <div class="kpi"><div class="l">Codes qualité</div><div class="v">${IDX.status.length}</div><div class="s">anomalies signalées</div></div>
+    `;
+    document.getElementById("tableCatalogue").querySelector("thead").innerHTML = `<tr>
+      <th>statinfo</th><th>Libellé</th><th>unit</th><th>quant_inc</th>
+      <th>Points</th><th>Géos</th><th>Années</th><th>Période</th>
+    </tr>`;
+    document.getElementById("tableCatalogue").querySelector("tbody").innerHTML = filtered.slice(0, 500).map(r => `
+      <tr>
+        <td><span class="badge blue">${r.statinfo}</span></td>
+        <td>${r.labelStat}</td><td>${r.unit}</td><td>${r.quant_inc}</td>
+        <td>${r.nPoints.toLocaleString('fr-FR')}</td><td>${r.nGeos}</td>
+        <td>${r.nYears}</td><td>${r.yearMin}–${r.yearMax}</td>
+      </tr>`).join("");
+    document.getElementById("lblCatCount").textContent = `${filtered.length} lignes (max 500 affichées)`;
+
+    const byStat = {};
+    filtered.forEach(r => { byStat[r.statinfo] = (byStat[r.statinfo]||0) + r.nPoints; });
+    const statArr = Object.entries(byStat).sort((a,b)=>b[1]-a[1]);
+    CAT.charts.c1?.destroy();
+    CAT.charts.c1 = new Chart(document.getElementById("cat1"), {
+      type:"bar",
+      data:{labels:statArr.map(x=>x[0]), datasets:[{data:statArr.map(x=>x[1]),
+        backgroundColor:statArr.map((_,i)=>`hsl(${200-i*10},60%,${60-i*2}%)`) }]},
+      options:{indexAxis:"y", responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}}
+    });
+
+    const byUnit = {};
+    filtered.forEach(r => { byUnit[r.unit] = (byUnit[r.unit]||0) + r.nPoints; });
+    CAT.charts.c2?.destroy();
+    CAT.charts.c2 = new Chart(document.getElementById("cat2"), {
+      type:"doughnut",
+      data:{labels:Object.keys(byUnit), datasets:[{data:Object.values(byUnit),
+        backgroundColor:["#1e7a9e","#e08a3c","#2e7d32","#c94c4c","#7c3aed"]}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom"}}}
+    });
+  }
+  document.getElementById("filtreCatalogue").addEventListener("input", renderCatalogue);
+  document.getElementById("filtreUnitCat").addEventListener("change", renderCatalogue);
+  document.getElementById("btnExportCat").addEventListener("click", () => exportCSV(INVENTAIRE, "inventaire_ilc_di01.csv"));
+  renderCatalogue();
+
+  // ============================================================
+  // CONVERGENCE
+  // ============================================================
+  const CONV = { charts:{} };
+  const GROUPES = {
+    UE27: ["AT","BE","BG","HR","CY","CZ","DK","EE","FI","FR","DE","EL","HU","IE","IT","LV","LT","LU","MT","NL","PL","PT","RO","SK","SI","ES","SE"],
+    UE15: ["AT","BE","DK","FI","FR","DE","EL","IE","IT","LU","NL","PT","ES","SE","UK"],
+    EA20: ["AT","BE","HR","CY","EE","FI","FR","DE","EL","IE","IT","LV","LT","LU","MT","NL","PT","SK","SI","ES"],
+    ALL:  PAYS,
+  };
+
+  function renderConvergence() {
+    const stat = document.getElementById("selConvStat").value;
+    const unit = document.getElementById("selConvUnit").value;
+    const quant = document.getElementById("selConvQuant").value;
+    const groupe = document.getElementById("selConvGroupe").value;
+    const geos = GROUPES[groupe].filter(g => GEO_KEYS.includes(g));
+
+    const seriesParPays = {};
+    let yMin = 9999, yMax = 0;
+    for (const g of geos) {
+      const s = serie(stat, unit, quant, g);
+      if (s.length) {
+        seriesParPays[g] = s;
+        yMin = Math.min(yMin, s[0].annee);
+        yMax = Math.max(yMax, s[s.length-1].annee);
+      }
+    }
+    const annees = YEARS.filter(y => +y >= yMin && +y <= yMax);
+    if (!annees.length) {
+      document.getElementById("kpisConvergence").innerHTML = `<div class="kpi" style="grid-column:1/-1;background:#fee2e2;border-color:#fca5a5"><div class="l" style="color:#991b1b">⚠️ Aucune série pour ${stat} · ${unit} · ${quant}</div></div>`;
+      return;
+    }
+
+    const stats = annees.map(y => {
+      const vals = geos.map(g => {
+        const s = seriesParPays[g];
+        if (!s) return null;
+        const pt = s.find(x => x.annee === +y);
+        return pt ? pt.valeur : null;
+      }).filter(v => typeof v === "number");
+      if (vals.length < 3) return null;
+      const m = mean(vals), s2 = sd(vals);
+      return { annee:+y, n:vals.length, moyenne:m, ecartType:s2, cv: m ? s2/m : null,
+               min: Math.min(...vals), max: Math.max(...vals) };
+    }).filter(Boolean);
+    if (!stats.length) return;
+
+    const sigmaStart = stats[0].ecartType, sigmaEnd = stats[stats.length-1].ecartType;
+    const delta = sigmaEnd - sigmaStart;
+    const pct = sigmaStart ? (delta/sigmaStart*100) : 0;
+
+    document.getElementById("kpisConvergence").innerHTML = `
+      <div class="kpi"><div class="l">Indicateur</div><div class="v">${stat}</div><div class="s">${unit} · ${quant}</div></div>
+      <div class="kpi"><div class="l">σ ${stats[0].annee}</div><div class="v">${fmt(sigmaStart,3)}</div><div class="s">écart-type</div></div>
+      <div class="kpi"><div class="l">σ ${stats[stats.length-1].annee}</div><div class="v">${fmt(sigmaEnd,3)}</div><div class="s">écart-type</div></div>
+      <div class="kpi"><div class="l">Δσ</div><div class="v" style="color:${delta<0?'var(--green)':'var(--red)'}">${delta>0?'+':''}${fmt(delta,3)}</div><div class="s">${pct>0?'+':''}${fmt(pct,1)} %</div></div>
+      <div class="kpi"><div class="l">Diagnostic</div><div class="v" style="font-size:1.1rem">${delta<-0.001?'✅ Convergence':delta>0.001?'⚠️ Divergence':'➖ Stable'}</div><div class="s">${groupe}</div></div>
+      <div class="kpi"><div class="l">Pays suivis</div><div class="v">${geos.length}</div><div class="s">${stats[0].annee}–${stats[stats.length-1].annee}</div></div>
+    `;
+    document.getElementById("lblConvSigma").textContent = `${stat} · ${unit} · ${quant} · ${groupe}`;
+
+    CONV.charts.c1?.destroy();
+    CONV.charts.c1 = new Chart(document.getElementById("conv1"), {
+      type:"line",
+      data:{labels:stats.map(s=>s.annee), datasets:[{label:"σ", data:stats.map(s=>s.ecartType),
+        borderColor:"#c94c4c", backgroundColor:"#c94c4c33", fill:true, tension:.3}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}
+    });
+
+    CONV.charts.c2?.destroy();
+    CONV.charts.c2 = new Chart(document.getElementById("conv2"), {
+      type:"line",
+      data:{labels:stats.map(s=>s.annee), datasets:[
+        {label:"Moyenne", data:stats.map(s=>s.moyenne), borderColor:"#1e7a9e", tension:.3},
+        {label:"Max", data:stats.map(s=>s.max), borderColor:"#2e7d32", borderDash:[4,4], tension:.3},
+        {label:"Min", data:stats.map(s=>s.min), borderColor:"#c94c4c", borderDash:[4,4], tension:.3},
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom"}}}
+    });
+
+    CONV.charts.c3?.destroy();
+    CONV.charts.c3 = new Chart(document.getElementById("conv3"), {
+      type:"line",
+      data:{labels:stats.map(s=>s.annee), datasets:[{label:"CV", data:stats.map(s=>s.cv),
+        borderColor:"#7c3aed", backgroundColor:"#7c3aed33", fill:true, tension:.3}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}
+    });
+
+    const palette = ["#1e7a9e","#e08a3c","#2e7d32","#c94c4c","#7c3aed","#0ea5e9","#db2777","#65a30d","#f59e0b","#0891b2","#9333ea","#dc2626","#16a34a","#ca8a04","#2563eb"];
+    const datasets = [];
+    let i = 0;
+    for (const [g, s] of Object.entries(seriesParPays)) {
+      const base = s.find(x => +x.annee === yMin)?.valeur;
+      if (!base) continue;
+      datasets.push({
+        label: TAB.geo.label[g] || g,
+        data: annees.map(y => {
+          const pt = s.find(x => +x.annee === +y);
+          return pt ? (pt.valeur / base * 100) : null;
+        }),
+        borderColor: palette[i % palette.length], borderWidth: 1.2, tension:.3, pointRadius:0,
+      });
+      i++;
+    }
+    CONV.charts.c4?.destroy();
+    CONV.charts.c4 = new Chart(document.getElementById("conv4"), {
+      type:"line",
+      data:{labels:annees, datasets},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{position:"bottom",labels:{boxWidth:10,font:{size:9}}}},
+        scales:{y:{title:{display:true,text:"Indice base 100"}}}}
+    });
+  }
+  ["selConvStat","selConvUnit","selConvQuant","selConvGroupe"].forEach(id =>
+    document.getElementById(id).addEventListener("change", renderConvergence));
+  renderConvergence();
+
+  // ============================================================
+  // PANNEAU PAUVRETÉ
+  // ============================================================
+  const PAUV = { charts:{} };
+  const IND_PAUV = [];
+  if (IDX.statinfo.has("AROP"))  IND_PAUV.push({ v:"AROP",  l:"AROP — Taux de pauvreté monétaire" });
+  if (IDX.statinfo.has("AROPE")) IND_PAUV.push({ v:"AROPE", l:"AROPE — Pauvreté + exclusion" });
+  if (IDX.statinfo.has("SMD"))   IND_PAUV.push({ v:"SMD",   l:"SMD — Dépenses matérielles" });
+  IND_PAUV.push({ v:"GINI",   l:"Gini — Inégalité (officiel/recalculé)" });
+  IND_PAUV.push({ v:"S80S20", l:"S80/S20 — Hauts revenus vs bas" });
+  IND_PAUV.push({ v:"P90P10", l:"P90/P10 — Interdécile extrême" });
+  IND_PAUV.push({ v:"P90P50", l:"P90/P50 — Haut de distribution" });
+  IND_PAUV.push({ v:"P50P10", l:"P50/P10 — Bas de distribution" });
+  fill(document.getElementById("selIndPauv"), IND_PAUV, IND_PAUV[0].v);
+
+  function getIndicateurPauv(code, geo, year) {
+    switch(code) {
+      case "GINI":   return getGini(geo, year);
+      case "S80S20": return getS80S20(geo, year);
+      case "P90P10": return getP90P10(geo, year);
+      case "P90P50": {
+        const off = getVal("P90P50", geo, year);
+        if (off != null) return { v: off, src: "Eurostat" };
+        const u = findUnit("SHARE", geo, year, "D5");
+        if (u) {
+          const a = q({unit:u, statinfo:"SHARE", quant_inc:"D5", geo, time:year});
+          const b = q({unit:u, statinfo:"SHARE", quant_inc:"D9", geo, time:year});
+          if (a && b) return { v: b/a, src: "recalculé" };
+        }
+        return { v:null, src:"—" };
+      }
+      case "P50P10": {
+        const off = getVal("P50P10", geo, year);
+        if (off != null) return { v: off, src: "Eurostat" };
+        const u = findUnit("SHARE", geo, year, "D1");
+        if (u) {
+          const a = q({unit:u, statinfo:"SHARE", quant_inc:"D1", geo, time:year});
+          const b = q({unit:u, statinfo:"SHARE", quant_inc:"D5", geo, time:year});
+          if (a && b) return { v: b/a, src: "recalculé" };
+        }
+        return { v:null, src:"—" };
+      }
+      default: {
+        const off = getVal(code, geo, year);
+        if (off != null) return { v: off, src: "Eurostat" };
+        return { v:null, src:"—" };
+      }
+    }
+  }
+
+  function getSerieIndicateur(code, geo) {
+    if (code === "GINI") {
+      const s = getSerie("GINI", geo, ["TOTAL"]);
+      if (s.length) return s;
+      const uS = findUnit("SHARE", geo, YEAR_MAX, "D1");
+      if (!uS) return [];
+      const out = [];
+      for (const y of YEARS) {
+        const parts = ["D1","D2","D3","D4","D5","D6","D7","D8","D9","D10"]
+          .map(k => q({unit:uS, statinfo:"SHARE", quant_inc:k, geo, time:y}));
+        if (parts.every(p => typeof p === "number")) {
+          const g = giniFromDeciles(parts);
+          if (g != null) out.push({ annee:+y, valeur: g*100 });
+        }
+      }
+      return out;
+    }
+    if (code === "S80S20") {
+      const s = getSerie("S80S20", geo, ["TOTAL"]);
+      if (s.length) return s;
+      const uS = findUnit("SHARE", geo, YEAR_MAX, "QU1");
+      if (!uS) return [];
+      const out = [];
+      for (const y of YEARS) {
+        const a = q({unit:uS, statinfo:"SHARE", quant_inc:"QU1", geo, time:y});
+        const b = q({unit:uS, statinfo:"SHARE", quant_inc:"QU5", geo, time:y});
+        if (a && b) out.push({ annee:+y, valeur: b/a });
+      }
+      return out;
+    }
+    if (code === "P90P10") {
+      const s = getSerie("P90P10", geo, ["TOTAL"]);
+      if (s.length) return s;
+      const uS = findUnit("SHARE", geo, YEAR_MAX, "D1");
+      if (!uS) return [];
+      const out = [];
+      for (const y of YEARS) {
+        const a = q({unit:uS, statinfo:"SHARE", quant_inc:"D1", geo, time:y});
+        const b = q({unit:uS, statinfo:"SHARE", quant_inc:"D9", geo, time:y});
+        if (a && b) out.push({ annee:+y, valeur: b/a });
+      }
+      return out;
+    }
+    if (code === "P90P50") {
+      const s = getSerie("P90P50", geo, ["TOTAL"]);
+      if (s.length) return s;
+      const uS = findUnit("SHARE", geo, YEAR_MAX, "D5");
+      if (!uS) return [];
+      const out = [];
+      for (const y of YEARS) {
+        const a = q({unit:uS, statinfo:"SHARE", quant_inc:"D5", geo, time:y});
+        const b = q({unit:uS, statinfo:"SHARE", quant_inc:"D9", geo, time:y});
+        if (a && b) out.push({ annee:+y, valeur: b/a });
+      }
+      return out;
+    }
+    if (code === "P50P10") {
+      const s = getSerie("P50P10", geo, ["TOTAL"]);
+      if (s.length) return s;
+      const uS = findUnit("SHARE", geo, YEAR_MAX, "D1");
+      if (!uS) return [];
+      const out = [];
+      for (const y of YEARS) {
+        const a = q({unit:uS, statinfo:"SHARE", quant_inc:"D1", geo, time:y});
+        const b = q({unit:uS, statinfo:"SHARE", quant_inc:"D5", geo, time:y});
+        if (a && b) out.push({ annee:+y, valeur: b/a });
+      }
+      return out;
+    }
+    return getSerie(code, geo, ["TOTAL"]);
+  }
+
+  function renderPauvrete() {
+    const year = document.getElementById("selYearPauv").value;
+    const geo = document.getElementById("selGeoPauv").value;
+    const indCode = document.getElementById("selIndPauv").value;
+
+    document.getElementById("lblPauvYear").textContent = year;
+    document.getElementById("lblPauvGeo").textContent = TAB.geo.label[geo]||geo;
+    document.getElementById("lblPauvGeo2").textContent = TAB.geo.label[geo]||geo;
+    document.getElementById("titrePauv1").textContent = `${indCode} par pays · ${year}`;
+
+    const arr = PAYS.map(g => {
+      const r = getIndicateurPauv(indCode, g, year);
+      return { geo:g, label:TAB.geo.label[g]||g, val: r.v, src: r.src };
+    }).filter(x => x.val != null).sort((a,b)=>b.val-a.val);
+
+    const pays = getIndicateurPauv(indCode, geo, year);
+    const ue = getIndicateurPauv(indCode, "EU27_2020", year);
+    const rang = arr.findIndex(x => x.geo === geo) + 1;
+    const moy = mean(arr.map(x=>x.val));
+
+    if (!arr.length) {
+      const message = IDX.statinfo.has("AROP")
+        ? `Aucune valeur pour <b>${indCode}</b> en <b>${year}</b>.<br>Essayez une autre année.`
+        : `⚠️ <b>${indCode}</b> n'est peut-être pas présent dans <code>ILC_DI01</code>.<br>
+           Indicateurs réellement disponibles : <b>${[...IDX.statinfo].sort().join(", ")}</b><br>
+           Basculez sur Gini, S80/S20 ou P90/P10.`;
+      document.getElementById("kpisPauv").innerHTML = `
+        <div class="kpi" style="grid-column:1/-1;background:#fee2e2;border-color:#fca5a5">
+          <div class="l" style="color:#991b1b">⚠️ Aucune donnée</div>
+          <div class="s" style="color:#7f1d1d;margin-top:8px">${message}</div>
+        </div>`;
+      PAUV.charts.c1?.destroy(); PAUV.charts.c2?.destroy();
+      PAUV.charts.c3?.destroy(); PAUV.charts.c4?.destroy();
+      return;
+    }
+
+    document.getElementById("kpisPauv").innerHTML = `
+      <div class="kpi"><div class="l">Indicateur</div><div class="v">${indCode}</div><div class="s">${IND_PAUV.find(x=>x.v===indCode)?.l.split("—")[1]?.trim()||""}</div></div>
+      <div class="kpi"><div class="l">${TAB.geo.label[geo]||geo}</div><div class="v">${fmt(pays.v)}</div><div class="s">rang ${rang}/${arr.length}</div></div>
+      <div class="kpi"><div class="l">UE27</div><div class="v">${fmt(ue.v)}</div><div class="s">référence</div></div>
+      <div class="kpi"><div class="l">Écart vs UE</div><div class="v" style="color:${pays.v>ue.v?'var(--red)':'var(--green)'}">${pays.v!=null&&ue.v!=null?(pays.v-ue.v>0?'+':'')+fmt(pays.v-ue.v):'—'}</div><div class="s">points</div></div>
+      <div class="kpi"><div class="l">Moyenne UE non pondérée</div><div class="v">${fmt(moy)}</div><div class="s">${arr.length} pays</div></div>
+      <div class="kpi"><div class="l">Min / Max</div><div class="v">${fmt(arr[arr.length-1]?.val)} / ${fmt(arr[0]?.val)}</div><div class="s">${arr[arr.length-1]?.label} / ${arr[0]?.label}</div></div>
+    `;
+
+    PAUV.charts.c1?.destroy();
+    PAUV.charts.c1 = new Chart(document.getElementById("pauv1"), {
+      type:"bar",
+      data:{labels:arr.map(x=>x.label), datasets:[{data:arr.map(x=>x.val),
+        backgroundColor:arr.map(x=>x.geo===geo?"#1e7a9e":(x.val>moy?"#c94c4c":"#2e7d32"))}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
+        tooltip:{callbacks:{label: ctx => `${ctx.raw} (${arr[ctx.dataIndex].src})`}}},
+        scales:{x:{ticks:{maxRotation:70,minRotation:45,font:{size:8}}}}}
+    });
+
+    const sPays = getSerieIndicateur(indCode, geo);
+    const sUE = getSerieIndicateur(indCode, "EU27_2020");
+    PAUV.charts.c2?.destroy();
+    if (sPays.length) {
+      PAUV.charts.c2 = new Chart(document.getElementById("pauv2"), {
+        type:"line",
+        data:{labels:sPays.map(x=>x.annee), datasets:[
+          {label:TAB.geo.label[geo]||geo, data:sPays.map(x=>x.valeur), borderColor:"#1e7a9e", tension:.3},
+          sUE.length ? {label:"UE27", data:sUE.map(x=>x.valeur), borderColor:"#c94c4c", borderDash:[5,5], tension:.3} : null,
+        ].filter(Boolean)},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom"}}}
+      });
+    }
+
+    const codes3 = ["GINI","S80S20","P90P10","P90P50","P50P10"];
+    const vals3 = codes3.map(c => {
+      const v = getIndicateurPauv(c, geo, year);
+      const u = getIndicateurPauv(c, "EU27_2020", year);
+      return { code:c, geo:v.v, ue:u.v };
+    }).filter(x => x.geo != null || x.ue != null);
+
+    PAUV.charts.c3?.destroy();
+    if (vals3.length) {
+      PAUV.charts.c3 = new Chart(document.getElementById("pauv3"), {
+        type:"bar",
+        data:{labels:vals3.map(v=>v.code), datasets:[
+          {label:TAB.geo.label[geo]||geo, data:vals3.map(v=>v.geo), backgroundColor:"#1e7a9e"},
+          {label:"UE27", data:vals3.map(v=>v.ue), backgroundColor:"#c94c4c"},
+        ]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom"}}}
+      });
+    }
+
+    const axeY = indCode === "GINI" ? "S80S20" : "GINI";
+    const points = PAYS.map(g => {
+      const x = getIndicateurPauv("GINI", g, year).v;
+      const y = getIndicateurPauv(axeY, g, year).v;
+      return x != null && y != null ? { g, label:TAB.geo.label[g]||g, x, y } : null;
+    }).filter(Boolean);
+
+    PAUV.charts.c4?.destroy();
+    if (points.length) {
+      PAUV.charts.c4 = new Chart(document.getElementById("pauv4"), {
+        type:"scatter",
+        data:{datasets:[{
+          data:points.map(p => ({x:p.x, y:p.y, label:p.label, g:p.g})),
+          backgroundColor: points.map(p => p.g===geo ? "#1e7a9e" : "#94a3b8"),
+          pointRadius: points.map(p => p.g===geo ? 9 : 5),
+        }]},
+        options:{responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{display:false},
+            tooltip:{callbacks:{label: ctx => {
+              const p = ctx.raw;
+              return `${p.label}: Gini=${p.x.toFixed(2)}, ${axeY}=${p.y.toFixed(2)}`;
+            }}}},
+          scales:{
+            x:{title:{display:true,text:"Indice de Gini"}},
+            y:{title:{display:true,text:axeY}}
+          }}
+      });
+    }
+  }
+  ["selYearPauv","selGeoPauv","selIndPauv"].forEach(id =>
+    document.getElementById(id).addEventListener("change", renderPauvrete));
+  renderPauvrete();
+
+  // ============================================================
+  // EXPLORATEUR
+  // ============================================================
+  const EXP = { charts:{} };
+  function renderExplore() {
+    const stat = document.getElementById("selExploreStat").value;
+    const unit = document.getElementById("selExploreUnit").value;
+    const quant = document.getElementById("selExploreQuant").value;
+    const geo = document.getElementById("selExploreGeo").value;
+
+    const s = serie(stat, unit, quant, geo);
+    document.getElementById("lblExplore").textContent = `${stat} · ${unit} · ${quant} · ${TAB.geo.label[geo]||geo}`;
+
+    if (!s.length) {
+      document.getElementById("kpisExplore").innerHTML = `
+        <div class="kpi" style="grid-column:1/-1;background:#fee2e2;border-color:#fca5a5">
+          <div class="l" style="color:#991b1b">⚠️ Aucune donnée pour cette combinaison</div>
+          <div class="s" style="color:#7f1d1d">Essayez d'autres valeurs.</div>
+        </div>`;
+      EXP.charts.e1?.destroy();
+      document.getElementById("rawSample").textContent = "—";
+      return;
+    }
+
+    const vals = s.map(x=>x.valeur);
+    const last = s[s.length-1];
+
+    document.getElementById("kpisExplore").innerHTML = `
+      <div class="kpi"><div class="l">Indicateur</div><div class="v">${stat}</div><div class="s">${unit} · ${quant}</div></div>
+      <div class="kpi"><div class="l">Pays</div><div class="v">${TAB.geo.label[geo]||geo}</div><div class="s">${geo}</div></div>
+      <div class="kpi"><div class="l">Dernière</div><div class="v">${fmt(last.valeur,3)}</div><div class="s">${last.annee}</div></div>
+      <div class="kpi"><div class="l">Min</div><div class="v">${fmt(Math.min(...vals),3)}</div><div class="s">—</div></div>
+      <div class="kpi"><div class="l">Max</div><div class="v">${fmt(Math.max(...vals),3)}</div><div class="s">—</div></div>
+      <div class="kpi"><div class="l">Points</div><div class="v">${s.length}</div><div class="s">${s[0].annee}–${last.annee}</div></div>
+    `;
+
+    EXP.charts.e1?.destroy();
+    EXP.charts.e1 = new Chart(document.getElementById("e1"), {
+      type:"line",
+      data:{labels:s.map(x=>x.annee), datasets:[{
+        label:`${stat} (${unit})`, data:s.map(x=>x.valeur),
+        borderColor:"#1e7a9e", backgroundColor:"#1e7a9e22", fill:true, tension:.3,
+      }]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom"}}}
+    });
+
+    document.getElementById("rawSample").textContent = JSON.stringify(s.slice(-20), null, 2);
+  }
+  ["selExploreStat","selExploreUnit","selExploreQuant","selExploreGeo"].forEach(id =>
+    document.getElementById(id).addEventListener("change", renderExplore));
+  renderExplore();
+
+  // ============================================================
+  // CARTE — Leaflet + OSM (pas de clé API)
+  // ============================================================
+  let map, geoLayer, legendControl;
+  const COORDS_PAYS = {
+    AT:[47.5,14.5], BE:[50.5,4.5], BG:[42.7,25.5], HR:[45.1,15.2], CY:[35,33], CZ:[49.8,15.5],
+    DK:[56,10], EE:[58.6,25], FI:[64,26], FR:[46.6,2.5], DE:[51,10], EL:[39,22], HU:[47,19.5],
+    IE:[53,-8], IT:[42.8,12.5], LV:[57,25], LT:[55.2,24], LU:[49.8,6.1], MT:[35.9,14.4],
+    NL:[52.2,5.3], PL:[52,19], PT:[39.5,-8], RO:[45.9,25], SK:[48.7,19.5], SI:[46.1,14.8],
+    ES:[40.2,-3.7], SE:[62,15], UK:[54,-2], NO:[61,9], CH:[46.8,8.2], IS:[65,-18],
+    TR:[39,35], RS:[44,21], ME:[42.7,19.3], MK:[41.6,21.7], AL:[41.2,20.2], XK:[42.6,20.9]
+  };
+
+  function initMap() {
+    map = L.map("map", {
+      center: [54, 15], zoom: 4,
+      worldCopyJump: true, minZoom: 3, maxZoom: 8,
+    });
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(map);
+  }
+  initMap();
+
+  function colorScale(palette, t) {
+    t = Math.max(0, Math.min(1, t));
+    switch(palette) {
+      case "viridis": return `hsl(${280 - t * 200}, 70%, ${20 + t * 50}%)`;
+      case "blues":   return `hsl(210, 70%, ${90 - t * 65}%)`;
+      case "rdylgn":
+      default:        return `hsl(${120 - t * 120}, 65%, 50%)`;
+    }
+  }
+
+  function resolveMapValue(code, geo, year) {
+    switch(code) {
+      case "GINI":   return getGini(geo, year).v;
+      case "S80S20": return getS80S20(geo, year).v;
+      case "P90P10": return getP90P10(geo, year).v;
+      case "MED_E":  return getMedian(geo, year);
+      case "MEAN_E": return getMean(geo, year);
+      case "TC_Q1":  return getVal("TC", geo, year, ["Q1"]);
+      default:       return getVal(code, geo, year);
+    }
+  }
+
+  function renderMap() {
+    const ind = document.getElementById("selMapIndicator").value;
+    const year = document.getElementById("selMapYear").value;
+    const palette = document.getElementById("selMapPalette").value;
+
+    const arr = PAYS
+      .map(g => ({ geo: g, label: TAB.geo.label[g] || g, val: resolveMapValue(ind, g, year) }))
+      .filter(x => x.val != null);
+
+    document.getElementById("lblMapTitle").textContent = `${ind} par pays · ${year}`;
+    if (!arr.length) {
+      document.getElementById("lblMapTitle").textContent = `Aucune donnée pour ${ind} en ${year}`;
+      if (geoLayer) map.removeLayer(geoLayer);
+      return;
+    }
+
+    const vals = arr.map(x => x.val);
+    const min = Math.min(...vals), max = Math.max(...vals);
+    const byGeo = Object.fromEntries(arr.map(x => [x.geo, x.val]));
+
+    if (geoLayer) map.removeLayer(geoLayer);
+    if (legendControl) map.removeControl(legendControl);
+
+    fetch("https://raw.githubusercontent.com/leakyMirror/map-of-europe/master/GeoJSON/europe.geojson")
+      .then(r => { if (!r.ok) throw new Error("GeoJSON indisponible"); return r.json(); })
+      .then(geojson => {
+        geoLayer = L.geoJSON(geojson, {
+          style: f => {
+            const code = (f.properties.ISO2 || f.properties.iso_a2 || "").toUpperCase();
+            const v = byGeo[code];
+            return {
+              fillColor: v != null ? colorScale(palette, (v - min) / (max - min || 1)) : "#e5e7eb",
+              weight: 1, color: "#fff", fillOpacity: 0.85,
+            };
+          },
+          onEachFeature: (f, layer) => {
+            const code = (f.properties.ISO2 || f.properties.iso_a2 || "").toUpperCase();
+            const v = byGeo[code];
+            const nom = f.properties.NAME || f.properties.name || code;
+            layer.bindTooltip(`<b>${nom}</b><br>${ind}: ${v != null ? fmt(v) : "—"}`, { sticky: true });
+            layer.on("mouseover", () => layer.setStyle({ weight: 2, color: "#1e293b" }));
+            layer.on("mouseout",  () => layer.setStyle({ weight: 1, color: "#fff" }));
+          }
+        }).addTo(map);
+
+        legendControl = L.control({ position: "bottomright" });
+        legendControl.onAdd = () => {
+          const div = L.DomUtil.create("div", "legend");
+          div.style.cssText = "background:#fff;padding:10px 12px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.2);font-size:.75rem;line-height:1.4";
+          div.innerHTML = `
+            <div style="font-weight:600;margin-bottom:6px">${ind} · ${year}</div>
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+              <span>${fmt(min)}</span>
+              <div style="width:120px;height:10px;border-radius:5px;background:linear-gradient(to right, ${colorScale(palette,0)}, ${colorScale(palette,0.5)}, ${colorScale(palette,1)})"></div>
+              <span>${fmt(max)}</span>
+            </div>
+            <div style="color:#64748b;font-size:.68rem">${arr.length} pays</div>
+          `;
+          return div;
+        };
+        legendControl.addTo(map);
+      })
+      .catch(err => {
+        console.warn("GeoJSON indisponible, fallback cercles :", err);
+        geoLayer = L.layerGroup();
+        for (const x of arr) {
+          const coords = COORDS_PAYS[x.geo];
+          if (!coords) continue;
+          const t = (x.val - min) / (max - min || 1);
+          L.circleMarker(coords, {
+            radius: 6 + t * 14,
+            fillColor: colorScale(palette, t),
+            color: "#fff", weight: 1, fillOpacity: 0.85,
+          }).bindTooltip(`<b>${x.label}</b><br>${ind}: ${fmt(x.val)}`, { sticky: true })
+            .addTo(geoLayer);
+        }
+        geoLayer.addTo(map);
+      });
+  }
+  ["selMapIndicator","selMapYear","selMapPalette"].forEach(id =>
+    document.getElementById(id).addEventListener("change", renderMap));
+  renderMap();
+
+  // ============================================================
+  // API CONSOLE
+  // ============================================================
+  window.EXPLORE = {
+    data, IDX, TAB, q, serie,
+    getGini, getS80S20, getP90P10, getMedian, getMean, getDeciles,
+    findUnit, getVal, getSerie,
+    inventaire: () => INVENTAIRE,
+    exportCSV, groupes: GROUPES,
+    statut: () => IDX.status,
+  };
+  console.log("✓ API console : window.EXPLORE");
+  console.log(`  ${INVENTAIRE.length} combinaisons · ${PAYS.length} pays · ${YEARS.length} années`);
+
+})();
+</script>
+</body>
+</html>
