@@ -89,7 +89,7 @@ Ce dashboard transforme le fichier brut `estat_ilc_di01_en.json` d'Eurostat (for
 ### Installation
 
 1. Cloner le dépôt :
-   git clone https://github.com/votre-utilisateur/dashboard-eurostat-ilc-di01.git
+   git clone https://github.com/gunout/distribution-revenus-europe.git
 
 2. Télécharger le dataset Eurostat :
    curl "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/ilc_di01?format=JSON&lang=EN" -o estat_ilc_di01_en.json
