@@ -43,7 +43,7 @@ Ce dashboard transforme le fichier brut `estat_ilc_di01_en.json` d'Eurostat (for
 
 | Caractéristique | Valeur |
 |---|---|
-| 📁 Fichiers | 2 (`dashboard.html` + `estat_ilc_di01_en.json`) |
+| 📁 Fichiers | 2 (`index.html` + `estat_ilc_di01_en.json`) |
 | 🔌 Dépendances | Chart.js 4.4, Leaflet 1.9 (CDN) |
 | 🌐 Connexion | Uniquement pour les tuiles OpenStreetMap |
 | 🎨 Design | Responsive, palette sobre, code couleur sémantique |
