@@ -103,20 +103,20 @@ Ce dashboard transforme le fichier brut `estat_ilc_di01_en.json` d'Eurostat (for
 
 Sans serveur local :
 
-- Linux / macOS : `open dashboard.html`
-- Windows : `start dashboard.html`
+- Linux / macOS : `open index.html`
+- Windows : `start index.html`
 
 ---
 
 ## 📂 Structure des fichiers
 
-dashboard-eurostat-ilc-di01/
-├── dashboard.html
-├── estat_ilc_di01_en.json
-├── README.md
-├── LICENSE
-└── docs/
-    └── screenshots/
+    dashboard-eurostat-ilc-di01/
+    ├── dashboard.html
+    ├── estat_ilc_di01_en.json
+    ├── README.md
+    ├── LICENSE
+    └── docs/
+       └── screenshots/
 
 Le dashboard est **mono-fichier** : tout le CSS et le JavaScript sont inline. Aucune compilation, aucun bundler.
 
